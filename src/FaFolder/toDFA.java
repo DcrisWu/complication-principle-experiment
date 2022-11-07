@@ -15,7 +15,7 @@ public class toDFA {
         Set<Character> tranChar = new HashSet<>();
         for (int i = 0; i < list.size(); i++) {
             tranChar.addAll(list.get(i).keySet());
-            // HashSet存的是改状态的epsilon的闭包
+            // HashSet存的是封该状态的epsilon的闭包
             // 用queue来实现该算法
             HashSet<Integer> hashSet = new HashSet<>();
             Queue<Integer> queue = new LinkedList<>();
@@ -51,6 +51,7 @@ public class toDFA {
                 Set<Integer> integerSet = dfaState.get(statePoll);
                 for (Integer integer : integerSet) {
                     if (list.get(integer).containsKey(character)) {
+                        Set<Integer> integerSet1 = list.get(integer).get(character);
                         for (Integer tranSta : list.get(integer).get(character)) {
                             integers.addAll(epsilonClosure.get(tranSta));
                         }
@@ -98,9 +99,35 @@ public class toDFA {
             }
         }
         // minimize DFA
+        // 最小化后的接收状态集合
+        Set<Integer> dfaAcceptState = new HashSet<>();
+        // 不能转换的终止状态
+        Set<Integer> notTran = new HashSet<>();
+        for (Integer integer : dfaAcceptBeforeMini) {
+            if (!move.containsKey(integer)) {
+                notTran.add(integer);
+            } else {
+                dfaAcceptState.add(integer);
+            }
+        }
+        // 如果没有转换出去的状态超过1个，就minimize
+        if (notTran.size() > 1) {
+            // 从没有转换出去的状态取一个代表
+            Integer stand = notTran.stream().toList().get(0);
+            dfaAcceptState.add(stand);
+            // 然后在notTran中移除stand，再遍历一遍move中，如果转换后的状态在notTran中，就替换为stand
+            notTran.remove(stand);
+            for (Integer integer : move.keySet()) {
+                for (Character character : tranChar) {
+                    if (notTran.contains(move.get(integer).get(character))) {
+                        move.get(integer).put(character, stand);
+                    }
+                }
+            }
+        }
         // 最小化后的DFA非接收状态集合
         Set<Integer> dfaNotAcceptState = new HashSet<>(dfaNotAcceptBeforeMini);
-        // 首先minimize非接收状态
+        // minimize dfa
         boolean needRefresh = true;
         while (needRefresh) {
             needRefresh = false;
@@ -130,6 +157,7 @@ public class toDFA {
                     if (judge) {
                         needRefresh = true;
                         dfaNotAcceptState.remove(integer2);
+                        dfaAcceptState.remove(integer2);
                         move.remove(integer2);
                         // 将转换后的状态，改为integer1
                         for (Integer integer : move.keySet()) {
@@ -143,37 +171,12 @@ public class toDFA {
                 }
             }
         }
-        // 最小化后的接收状态集合
-        Set<Integer> dfaAcceptState = new HashSet<>();
-        // 不能转换的终止状态
-        Set<Integer> notTran = new HashSet<>();
-        for (Integer integer : dfaAcceptBeforeMini) {
-            if (!move.containsKey(integer)) {
-                notTran.add(integer);
-            }else {
-                dfaAcceptState.add(integer);
-            }
-        }
-        // 如果没有转换出去的状态超过1个，就minimize
-        if (notTran.size() > 1) {
-            // 从没有转换出去的状态取一个代表
-            Integer stand = notTran.stream().toList().get(0);
-            dfaAcceptState.add(stand);
-            // 然后在notTran中移除stand，再遍历一遍move中，如果转换后的状态在notTran中，就替换为stand
-            notTran.remove(stand);
-            for (Integer integer : move.keySet()) {
-                for (Character character : tranChar) {
-                    if (notTran.contains(move.get(integer).get(character))) {
-                        move.get(integer).put(character, stand);
-                    }
-                }
-            }
-        }
+
         return new DfaGraph(0, dfaAcceptState, move);
     }
 
     public static void main(String[] args) {
-        ReParseToTree reParseToTree = new ReParseToTree("(a|b)*ab(a|b)");
+        ReParseToTree reParseToTree = new ReParseToTree("(a|b)*ab(a|b)*");
         Tree parse = reParseToTree.parse();
         toNFA toNFA = new toNFA();
         Graph graph = toNFA.ReToNFA(parse.getRoot());
